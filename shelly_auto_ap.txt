@@ -1,0 +1,27 @@
+const enableApAfter = 10 //in minutes - 10 min
+const timer = 1000*60*5 //in minutes - 5 min
+let lastConnectedWiFi = new Date();
+ 
+Timer.set(timer, true, function(){
+  Shelly.call("WiFi.GetStatus",null, function(e){
+    if (e.status == "connecting" || e.status == "disconnected"){
+      let currentTime = new Date(); 
+      let dateDiff = Math.round((currentTime.getTime() - lastConnectedWiFi.getTime())/ 60000) 
+ 
+      if (dateDiff >= enableApAfter)
+          Shelly.call("WiFi.SetConfig",{"config":{"ap":{"enable":true}}})
+    }
+    else
+    {
+      // turn off if it is on and wifi restored
+      Shelly.call("WiFi.GetConfig",null, function(cfg){
+          if (cfg.ap.enable == true){
+            Shelly.call("WiFi.SetConfig",{"config":{"ap":{"enable":false}}})
+        }
+      })
+      
+        lastConnectedWiFi = new Date(); 
+    }
+  })
+
+    });
