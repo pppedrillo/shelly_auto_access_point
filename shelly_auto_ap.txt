@@ -1,27 +1,33 @@
-const enableApAfter = 10 //in minutes - 10 min
-const timer = 1000*60*5 //in minutes - 5 min
-let lastConnectedWiFi = new Date();
- 
-Timer.set(timer, true, function(){
-  Shelly.call("WiFi.GetStatus",null, function(e){
-    if (e.status == "connecting" || e.status == "disconnected"){
-      let currentTime = new Date(); 
-      let dateDiff = Math.round((currentTime.getTime() - lastConnectedWiFi.getTime())/ 60000) 
- 
-      if (dateDiff >= enableApAfter)
-          Shelly.call("WiFi.SetConfig",{"config":{"ap":{"enable":true}}})
-    }
-    else
-    {
-      // turn off if it is on and wifi restored
-      Shelly.call("WiFi.GetConfig",null, function(cfg){
-          if (cfg.ap.enable == true){
-            Shelly.call("WiFi.SetConfig",{"config":{"ap":{"enable":false}}})
-        }
-      })
-      
-        lastConnectedWiFi = new Date(); 
-    }
-  })
+const enableApAfterMins = 5
+const checkIntervalMins = 1
 
-    });
+let wifiLastConnectedTimestamp = 0; // milliseconds since epoch
+
+const t = Timer.set(checkIntervalMins * 60 * 1000, true, function () {
+  Shelly.call("WiFi.GetStatus", null, function (s) {
+    // console.log("WiFi status: " + JSON.stringify(s))
+    const wifiConnected = s.status === "got ip"
+    Shelly.call("WiFi.GetConfig", null, function (cfg) {
+      // console.log("WiFi config: " + JSON.stringify(cfg))
+      const apEnabled = cfg.ap.enable
+      if (wifiConnected) {
+        wifiLastConnectedTimestamp = new Date().getTime()
+        if (apEnabled) {
+          console.log("Disabling AP mode, we're connected to WiFi")
+          Shelly.call("WiFi.SetConfig", { "config": { "ap": { "enable": false } } })
+        }
+      } else {
+        if (!apEnabled) {
+          const currentTimestamp = new Date().getTime()
+          let wifiDownTimeMins = Math.round((currentTimestamp - wifiLastConnectedTimestamp) / 60000)
+          if (wifiDownTimeMins >= enableApAfterMins) {
+            console.log("Enabling AP mode after " + wifiDownTimeMins + " minutes of no connection")
+            Shelly.call("WiFi.SetConfig", { "config": { "ap": { "enable": true } } })
+          }
+        }
+      }
+    })
+  })
+})
+
+console.log("Started WiFi watchdog, will check every " + checkIntervalMins + " minutes")
